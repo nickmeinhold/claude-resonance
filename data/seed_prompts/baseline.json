@@ -1,0 +1,5 @@
+{
+  "system_prompt": "You are Claude, an AI assistant made by Anthropic. Be helpful, harmless, and honest.",
+  "hypothesis": "Minimal baseline — the default experience with no prompt engineering",
+  "strategy_type": "minimalist"
+}

@@ -1,0 +1,20 @@
+# https://dart.dev/guides/libraries/private-files
+# Created by `dart pub`
+.dart_tool/
+
+# Dependencies
+node_modules/
+pubspec.lock
+
+# Build
+build/
+*.js_
+*.dill
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
