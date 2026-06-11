@@ -90,6 +90,19 @@ class ExperimentRunner {
       stdout.writeln('  Resuming from generation $startGen');
     }
 
+    // No saved archive but run history exists: rebuild the archive by
+    // replaying history. tryInsert keeps only the best run per cell, so
+    // this reconstructs the archive state exactly — without it, a resume
+    // would start mid-evolution with an empty gene pool.
+    if (savedArchive == null && existingRuns.isNotEmpty) {
+      for (final run in existingRuns) {
+        archive.tryInsert(run);
+      }
+      stdout.writeln('  Rebuilt archive from ${existingRuns.length} prior '
+          'runs: ${archive.occupiedCells}/${archive.cellCount} cells');
+      await _store.writeArchive(archive);
+    }
+
     // Seed phase: run all seeds, evaluate, insert into archive.
     // Skip if we already have archived data (resuming).
     if (seedVariants.isNotEmpty && startGen == 0) {
