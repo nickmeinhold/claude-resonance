@@ -59,8 +59,8 @@ ExperimentConfig _parseArgs(List<String> args) {
   var seedDir = 'data/seed_prompts';
   var variantsPerGen = 2;
   var evalReplicas = 2;
-  double? subjectBudget = 0.05;
-  double? evaluatorBudget = 0.03;
+  double? subjectBudget = 0.50;
+  double? evaluatorBudget = 0.30;
 
   for (var i = 0; i < args.length; i++) {
     switch (args[i]) {

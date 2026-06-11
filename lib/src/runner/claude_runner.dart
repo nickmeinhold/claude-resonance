@@ -146,6 +146,20 @@ class ProcessClaudeRunner implements ClaudeRunner {
         continue;
       }
 
+      // Budget exceeded is deterministic — the same call costs the same
+      // again, so retrying multiplies spend on a guaranteed failure.
+      if (output.contains('"subtype":"error_max_budget_usd"')) {
+        throw ProcessException(
+          'claude',
+          args,
+          'Call exceeded --max-budget-usd. Every CLI invocation carries '
+          '~27k tokens of system-prompt overhead, so per-call budgets '
+          'below ~\$0.10 (opus) cannot succeed. Raise the budget or pass '
+          '--no-budget. Error: $output',
+          result.exitCode,
+        );
+      }
+
       // Transient failure — retry with backoff.
       transientAttempts++;
       if (transientAttempts <= maxTransientRetries) {
