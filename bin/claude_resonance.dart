@@ -124,6 +124,9 @@ Options:
   --seed-dir <path>           Seed prompts directory (default: data/seed_prompts)
   --variants-per-gen <n>      Variants per generation (default: 2)
   --eval-replicas <n>         Evaluation replicas for averaging (default: 2)
+  --subject-budget <usd>      Per-call USD cap for the Subject (default: 0.05)
+  --evaluator-budget <usd>    Per-call USD cap for the Evaluator (default: 0.03)
+  --no-budget                 Remove per-call budget caps (use on a subscription)
   -h, --help                  Show this help
 ''');
 }
