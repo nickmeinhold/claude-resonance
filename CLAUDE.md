@@ -19,19 +19,20 @@ dart test
 ## Run
 
 ```bash
-# Default: 5 generations, sonnet for all roles
+# Default: 5 generations, opus for all roles
 dart run
 
-# Custom configuration
-dart run claude_resonance -- \
+# Custom configuration (note: no `--` separator — args go straight after the package)
+dart run claude_resonance \
   --generations 10 \
   --researcher-model opus \
-  --subject-model sonnet \
-  --evaluator-model sonnet \
-  --output-dir data/experiments
+  --subject-model opus \
+  --evaluator-model opus \
+  --output-dir data/experiments \
+  --no-budget
 
 # Quick test run
-dart run claude_resonance -- --generations 2
+dart run claude_resonance --generations 2
 ```
 
 ## Project Structure
