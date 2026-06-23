@@ -18,3 +18,13 @@ build/
 
 # OS
 .DS_Store
+
+# Experiment run output (regenerable — not source). The quarantine README is
+# kept as evidence; the heavy data artifacts are not.
+/data/experiments/gen_*.json
+/data/experiments/archive.json
+/data/experiments/dashboard_state.json
+/data/experiments/experiment_log.json
+/data/experiments/confounded_run_2026-06/archive.json
+/data/experiments/confounded_run_2026-06/*.log
+*.log
