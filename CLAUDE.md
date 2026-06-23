@@ -19,19 +19,22 @@ dart test
 ## Run
 
 ```bash
-# Default: 5 generations, sonnet for all roles
+# ALWAYS gate a run on a green contamination probe first (the law):
+dart run bin/probe.dart --model opus   # must print: ✅ CLEAN
+
+# Default: 5 generations, opus for all roles
 dart run
 
-# Custom configuration
-dart run claude_resonance -- \
+# Custom configuration (note: no `--` separator — it's read as an arg)
+dart run bin/claude_resonance.dart \
   --generations 10 \
   --researcher-model opus \
-  --subject-model sonnet \
-  --evaluator-model sonnet \
+  --subject-model opus \
+  --evaluator-model opus \
   --output-dir data/experiments
 
 # Quick test run
-dart run claude_resonance -- --generations 2
+dart run bin/claude_resonance.dart --generations 2
 ```
 
 ## Project Structure
