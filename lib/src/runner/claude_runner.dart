@@ -85,7 +85,34 @@ abstract class ClaudeRunner {
 /// process, capturing stdout as the response. Uses `--output-format json`
 /// for structured output and `--json-schema` when schema enforcement is
 /// needed (Evaluator, Researcher).
+///
+/// ## Contamination isolation (critical for experimental validity)
+///
+/// Without isolation, every role inherits the dart process's environment and
+/// leaks Claude Code's own configuration into the experiment — making the
+/// pipeline measure an echo of its own instructions rather than the prompt on
+/// trial. There are THREE distinct leak channels, each closed by a different
+/// lever (all three empirically verified clean, 2026-06-23; OAuth auth
+/// survives all three, unlike `--bare`/`HOME` override which break login):
+///
+/// 1. **Global `~/.claude/CLAUDE.md`** (the `user` setting source) and
+///    **project `CLAUDE.md`** (the `project` source) → closed by
+///    `--setting-sources local` (drops both, keeps local/auth).
+/// 2. **Project auto-memory** (`MEMORY.md` + `project_*.md`), loaded by a
+///    mechanism orthogonal to setting-sources and keyed by the project slug
+///    derived from cwd → closed two ways for redundancy:
+///    `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in the subprocess env, AND running
+///    in a fresh temp [workingDirectory] (a slug with no memory dir).
 class ProcessClaudeRunner implements ClaudeRunner {
+  /// A single throwaway working directory reused across all invocations.
+  ///
+  /// Running every role here (rather than the project root) gives each
+  /// subprocess a project slug with no associated CLAUDE.md or auto-memory,
+  /// starving the project-file and memory leak channels. Created lazily once
+  /// so a long run doesn't litter the filesystem with thousands of temp dirs.
+  late final io.Directory _isolatedCwd =
+      io.Directory.systemTemp.createTempSync('claude_resonance_iso_');
+
   @override
   Future<ClaudeResponse> run({
     required String userMessage,
@@ -103,6 +130,11 @@ class ProcessClaudeRunner implements ClaudeRunner {
       model,
       '--no-session-persistence',
       '--dangerously-skip-permissions',
+      // Drop the user (global ~/.claude/CLAUDE.md) and project CLAUDE.md
+      // setting sources; keep only local. Auth is not a setting source and
+      // is unaffected. See class doc — channel 1.
+      '--setting-sources',
+      'local',
     ];
 
     if (maxBudgetUsd != null) {
@@ -126,7 +158,15 @@ class ProcessClaudeRunner implements ClaudeRunner {
     var transientAttempts = 0;
 
     while (true) {
-      result = await Process.run('claude', args);
+      result = await Process.run(
+        'claude',
+        args,
+        // Channel 2: a fresh slug-less cwd + the auto-memory kill switch.
+        // `environment` is merged onto the parent env (includeParentEnvironment
+        // defaults true), so OAuth/keychain auth is preserved.
+        workingDirectory: _isolatedCwd.path,
+        environment: const {'CLAUDE_CODE_DISABLE_AUTO_MEMORY': '1'},
+      );
       if (result.exitCode == 0) break;
 
       final stdout = (result.stdout as String).trim();
