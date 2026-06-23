@@ -14,7 +14,7 @@ void main() {
       archive = MapElitesArchive();
     });
 
-    ClaudeResponse _makeOperatorResponse({
+    ClaudeResponse makeOperatorResponse({
       String strategyType = 'persona',
       String mutationOperator = 'refine',
     }) {
@@ -32,7 +32,7 @@ void main() {
       );
     }
 
-    ExperimentRun _makeRun({
+    ExperimentRun makeRun({
       required double score,
       required String systemPrompt,
       String? strategyType,
@@ -76,7 +76,7 @@ void main() {
     }
 
     test('RefineOperator produces variant with correct mutationOperator', () async {
-      runner.stubAny(_makeOperatorResponse(mutationOperator: 'refine'));
+      runner.stubAny(makeOperatorResponse(mutationOperator: 'refine'));
 
       final op = RefineOperator(
         runner: runner,
@@ -92,7 +92,7 @@ void main() {
     });
 
     test('RandomInjectionOperator sets no parentIds', () async {
-      runner.stubAny(_makeOperatorResponse(mutationOperator: 'randomInjection'));
+      runner.stubAny(makeOperatorResponse(mutationOperator: 'randomInjection'));
 
       final op = RandomInjectionOperator(
         runner: runner,
@@ -109,20 +109,20 @@ void main() {
 
     test('SemanticCrossoverOperator sets parentIds with two parents', () async {
       // Need at least 2 runs in the archive for crossover.
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 4.0,
         systemPrompt: 'Parent A prompt.',
         strategyType: 'persona',
         variantId: 'parent-a',
       ));
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 3.5,
         systemPrompt: 'Before answering, identify assumptions.',
         strategyType: 'socratic',
         variantId: 'parent-b',
       ));
 
-      runner.stubAny(_makeOperatorResponse(
+      runner.stubAny(makeOperatorResponse(
         mutationOperator: 'semanticCrossover',
       ));
 
@@ -140,20 +140,20 @@ void main() {
     });
 
     test('DifferentialCrossoverOperator sets parentIds', () async {
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 4.0,
         systemPrompt: 'Prompt one.',
         strategyType: 'persona',
         variantId: 'p1',
       ));
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 3.0,
         systemPrompt: 'Before answering, consider assumptions.',
         strategyType: 'socratic',
         variantId: 'p2',
       ));
 
-      runner.stubAny(_makeOperatorResponse(
+      runner.stubAny(makeOperatorResponse(
         mutationOperator: 'differentialCrossover',
       ));
 
@@ -171,14 +171,14 @@ void main() {
     });
 
     test('LamarckianOperator produces variant from best response', () async {
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 4.5,
         systemPrompt: 'Be creative.',
         strategyType: 'persona',
         variantId: 'best-parent',
       ));
 
-      runner.stubAny(_makeOperatorResponse(
+      runner.stubAny(makeOperatorResponse(
         mutationOperator: 'lamarckian',
       ));
 
@@ -196,7 +196,7 @@ void main() {
 
     test('LamarckianOperator falls back to random injection with empty archive',
         () async {
-      runner.stubAny(_makeOperatorResponse(
+      runner.stubAny(makeOperatorResponse(
         mutationOperator: 'randomInjection',
       ));
 
@@ -215,13 +215,13 @@ void main() {
 
     test('crossover operators fall back to refine with < 2 archive entries',
         () async {
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 3.0,
         systemPrompt: 'Only one.',
         strategyType: 'persona',
       ));
 
-      runner.stubAny(_makeOperatorResponse(mutationOperator: 'refine'));
+      runner.stubAny(makeOperatorResponse(mutationOperator: 'refine'));
 
       final op = SemanticCrossoverOperator(
         runner: runner,

@@ -102,17 +102,25 @@ abstract class ClaudeRunner {
 ///    mechanism orthogonal to setting-sources and keyed by the project slug
 ///    derived from cwd → closed two ways for redundancy:
 ///    `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in the subprocess env, AND running
-///    in a fresh temp [workingDirectory] (a slug with no memory dir).
+///    in a fresh temp [workingDirectory] (a slug with no memory dir). The
+///    cwd is created per-call and deleted in a `finally`, so no cwd-local
+///    artifact the CLI might write can carry state from one role to the next
+///    (Researcher → Subject → Evaluator stay mutually isolated).
+///
+/// ### Named tradeoff: the env is inherit-all + one kill switch, not a denylist
+///
+/// `environment:` is *merged onto* the parent env (`includeParentEnvironment`
+/// defaults true), so the subprocess inherits every parent variable plus the
+/// auto-memory kill switch. This is deliberate: overriding `HOME` or passing a
+/// minimal allow-list breaks the CLI's OAuth/keychain auth (verified — `HOME`
+/// override yields `Not logged in`). The contamination channels we actually
+/// observed (CLAUDE.md × 2, auto-memory) are each closed by a *specific* lever
+/// above; a hypothetical `CLAUDE_*`/`ANTHROPIC_*` env-var contaminant is not a
+/// known channel here. If one is ever found, close it with another targeted
+/// override rather than flipping to `includeParentEnvironment: false` (which
+/// reintroduces the auth break). The standing probe gate is what would catch
+/// such a regression.
 class ProcessClaudeRunner implements ClaudeRunner {
-  /// A single throwaway working directory reused across all invocations.
-  ///
-  /// Running every role here (rather than the project root) gives each
-  /// subprocess a project slug with no associated CLAUDE.md or auto-memory,
-  /// starving the project-file and memory leak channels. Created lazily once
-  /// so a long run doesn't litter the filesystem with thousands of temp dirs.
-  late final io.Directory _isolatedCwd =
-      io.Directory.systemTemp.createTempSync('claude_resonance_iso_');
-
   @override
   Future<ClaudeResponse> run({
     required String userMessage,
@@ -151,6 +159,38 @@ class ProcessClaudeRunner implements ClaudeRunner {
 
     final stopwatch = Stopwatch()..start();
 
+    // Channel 2: a fresh, slug-less working directory created per call and
+    // removed in the `finally` below, so the subprocess can neither read the
+    // project's CLAUDE.md/auto-memory nor leave artifacts visible to the next
+    // role's call.
+    final isolatedCwd =
+        io.Directory.systemTemp.createTempSync('claude_resonance_iso_');
+    try {
+      return await _runIn(
+        isolatedCwd: isolatedCwd,
+        args: args,
+        jsonSchema: jsonSchema,
+        stopwatch: stopwatch,
+      );
+    } finally {
+      try {
+        isolatedCwd.deleteSync(recursive: true);
+      } on io.FileSystemException {
+        // Best-effort cleanup; the OS reaps systemTemp regardless.
+      }
+    }
+  }
+
+  /// Invokes the CLI inside [isolatedCwd] and parses the response.
+  ///
+  /// Split out from [run] purely so the per-call temp-dir lifecycle (create →
+  /// use → delete) is expressed as a single `try`/`finally` around one call.
+  Future<ClaudeResponse> _runIn({
+    required io.Directory isolatedCwd,
+    required List<String> args,
+    required Map<String, Object>? jsonSchema,
+    required Stopwatch stopwatch,
+  }) async {
     // Retry with rate-limit awareness: if we hit the usage limit,
     // sleep until the reset time instead of failing.
     late ProcessResult result;
@@ -161,10 +201,10 @@ class ProcessClaudeRunner implements ClaudeRunner {
       result = await Process.run(
         'claude',
         args,
-        // Channel 2: a fresh slug-less cwd + the auto-memory kill switch.
         // `environment` is merged onto the parent env (includeParentEnvironment
-        // defaults true), so OAuth/keychain auth is preserved.
-        workingDirectory: _isolatedCwd.path,
+        // defaults true), so OAuth/keychain auth is preserved. See class doc —
+        // "Named tradeoff: inherit-all + one kill switch".
+        workingDirectory: isolatedCwd.path,
         environment: const {'CLAUDE_CODE_DISABLE_AUTO_MEMORY': '1'},
       );
       if (result.exitCode == 0) break;

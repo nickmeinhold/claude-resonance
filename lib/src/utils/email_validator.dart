@@ -10,7 +10,7 @@
 /// EmailValidator.pragmatic('"quoted spaces"@example.com'); // false (rejected by most servers)
 /// EmailValidator.rfc5322('"quoted spaces"@example.com');   // true (technically valid)
 /// ```
-library email_validator;
+library;
 
 /// Validation strictness levels, from most to least permissive.
 enum EmailStrictness {
