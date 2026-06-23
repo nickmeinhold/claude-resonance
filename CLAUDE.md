@@ -3,6 +3,23 @@
 Autonomous system prompt evolution — discovers what makes Claude resonate
 through a Researcher → Subject → Evaluator pipeline.
 
+## ▶ Next crux (read first)
+
+The CLAUDE.md/auto-memory leak is **fixed** (`fix/isolate-claude-md-leak`) — the
+pipeline now generates its own ideas instead of echoing the operator's doctrine.
+The first clean run exposed the next problem: **top-end evaluator compression**
+(Opus-grading-Opus can tell bad prompts from good, but can't rank the *best*
+ones apart — they cluster ~4.8–4.9).
+
+The proposed fix is a **cross-family tie-breaker** (Gemini + Codex judge only the
+top-end ties, bounded by a hard quota cap because they're Pro-plan limited).
+Full design, constraints, isolation requirements, and open decisions:
+**[`docs/design/cross-family-evaluator.md`](docs/design/cross-family-evaluator.md)**.
+Start there.
+
+**The law:** no evolution run launches without a green contamination probe first
+(`dart run bin/probe.dart --model opus` → must print `✅ CLEAN`).
+
 ## Build
 
 ```bash
