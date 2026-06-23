@@ -1,0 +1,22 @@
+# build_runner configuration.
+#
+# build_runner does NOT honour analysis_options.yaml excludes — it has its own
+# source set. The orphaned music-theory trees (lib/src/music, scratch,
+# exploration, sketch) are unrelated to the resonance pipeline and contain
+# syntax errors that break freezed/json_serializable code generation. Exclude
+# them here so a clean `dart run build_runner build` succeeds; removal vs. keep
+# is tracked as separate triage.
+targets:
+  $default:
+    sources:
+      include:
+        - lib/**
+        - bin/**
+        - test/**
+        - pubspec.yaml
+        - $package$
+      exclude:
+        - lib/src/music/**
+        - scratch/**
+        - exploration/**
+        - sketch/**
