@@ -48,7 +48,8 @@ dart run bin/claude_resonance.dart \
   --researcher-model opus \
   --subject-model opus \
   --evaluator-model opus \
-  --output-dir data/experiments
+  --output-dir data/experiments \
+  --no-budget
 
 # Quick test run
 dart run bin/claude_resonance.dart --generations 2
