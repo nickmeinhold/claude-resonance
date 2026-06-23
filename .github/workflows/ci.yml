@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Skip the build/test job when only docs changed.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '!(**/*.md|**/*.txt|LICENSE)'
+              - '**/*.dart'
+              - 'pubspec.yaml'
+              - '.github/workflows/**'
+
+  test:
+    needs: changes
+    # Always run so the required "test" check resolves even on docs-only PRs.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - name: Skip (docs-only change)
+        if: needs.changes.outputs.code != 'true'
+        run: echo "Only docs changed — skipping build/analyze/test."
+      - name: Install dependencies
+        if: needs.changes.outputs.code == 'true'
+        run: dart pub get
+      - name: Generate Freezed/JSON code
+        if: needs.changes.outputs.code == 'true'
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Analyze
+        if: needs.changes.outputs.code == 'true'
+        run: dart analyze
+      - name: Test
+        if: needs.changes.outputs.code == 'true'
+        run: dart test

@@ -20,7 +20,7 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    ClaudeResponse _makeEvalResponse({double baseScore = 3.0}) {
+    ClaudeResponse makeEvalResponse({double baseScore = 3.0}) {
       final scores = Rubric.dimensions.map((d) {
         return {
           'dimension': d.name,
@@ -36,7 +36,7 @@ void main() {
       );
     }
 
-    ClaudeResponse _makeResearcherResponse(int gen) {
+    ClaudeResponse makeResearcherResponse(int gen) {
       final json = {
         'hypothesis': 'Hypothesis for generation $gen',
         'rationale': 'Rationale for generation $gen',
@@ -52,7 +52,7 @@ void main() {
       );
     }
 
-    ClaudeResponse _makeSubjectResponse(String taskId) {
+    ClaudeResponse makeSubjectResponse(String taskId) {
       return ClaudeResponse(
         text: 'Mock response to task $taskId with interesting details.',
         latency: const Duration(seconds: 3),
@@ -64,47 +64,47 @@ void main() {
       // Stub the mutation operator messages (RefineOperator sends "Here is the best-performing")
       runner.stubResponse(
         'Here is the best-performing',
-        _makeResearcherResponse(1),
+        makeResearcherResponse(1),
       );
       // RandomInjectionOperator sends "Generate a completely novel"
       runner.stubResponse(
         'Generate a completely novel',
-        _makeResearcherResponse(1),
+        makeResearcherResponse(1),
       );
       // SemanticCrossover sends "## Parent A"
       runner.stubResponse(
         '## Parent A',
-        _makeResearcherResponse(1),
+        makeResearcherResponse(1),
       );
       // DifferentialCrossover sends "## Prompt A"
       runner.stubResponse(
         '## Prompt A',
-        _makeResearcherResponse(1),
+        makeResearcherResponse(1),
       );
       // LamarckianOperator sends "Here is an exceptionally"
       runner.stubResponse(
         'Here is an exceptionally',
-        _makeResearcherResponse(1),
+        makeResearcherResponse(1),
       );
       // Old-style researcher messages (for backward compat tests).
       runner.stubResponse(
         'This is the first generation',
-        _makeResearcherResponse(1),
+        makeResearcherResponse(1),
       );
       runner.stubResponse(
         '## Experiment History',
-        _makeResearcherResponse(2),
+        makeResearcherResponse(2),
       );
 
       // Evaluator responses.
       runner.stubResponse(
         'Evaluate the following',
-        _makeEvalResponse(baseScore: 3),
+        makeEvalResponse(baseScore: 3),
       );
 
       // For Subject responses (the actual test battery messages),
       // use wildcard as fallback.
-      runner.stubAny(_makeSubjectResponse('generic'));
+      runner.stubAny(makeSubjectResponse('generic'));
 
       final seed = PromptVariant(
         id: 'seed-1',

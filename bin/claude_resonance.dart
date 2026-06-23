@@ -26,6 +26,27 @@ void main(List<String> arguments) async {
   final runner = ProcessClaudeRunner();
   final store = JsonStore(config.experimentsDir);
 
+  // THE LAW (enforced in code, not just prose): no run launches without a
+  // green contamination probe. Every result is invalid if any role inherits
+  // Claude Code's own config, so we fail CLOSED — abort unless the gate is
+  // green. `--skip-probe` is the explicit, loud fail-open escape hatch.
+  if (arguments.contains('--skip-probe')) {
+    stdout.writeln('\n⚠  --skip-probe: contamination gate BYPASSED by request.\n');
+  } else {
+    stdout.writeln('\n  Contamination probe (gate)...');
+    final probe = await runContaminationProbe(runner, model: config.subjectModel);
+    if (!probe.clean) {
+      stderr.writeln('\n❌ CONTAMINATED — pre-run gate failed. Leaked canaries:');
+      probe.hits.forEach(
+          (channel, phrases) => stderr.writeln('   [$channel] ${phrases.join(", ")}'));
+      stderr.writeln('\nAborting: results would be invalid. Fix isolation '
+          '(see lib/src/runner/claude_runner.dart) or pass --skip-probe to '
+          'override at your own risk.');
+      exit(1);
+    }
+    stdout.writeln('  ✅ Probe CLEAN — proceeding.\n');
+  }
+
   // Load seed prompts.
   final seeds = await _loadSeedPrompts(config.seedPromptsDir);
   stdout.writeln('  Seed prompts:       ${seeds.length}');
@@ -59,8 +80,8 @@ ExperimentConfig _parseArgs(List<String> args) {
   var seedDir = 'data/seed_prompts';
   var variantsPerGen = 2;
   var evalReplicas = 2;
-  double? subjectBudget = 0.05;
-  double? evaluatorBudget = 0.03;
+  double? subjectBudget = 0.50;
+  double? evaluatorBudget = 0.30;
 
   for (var i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -87,6 +108,9 @@ ExperimentConfig _parseArgs(List<String> args) {
       case '--no-budget':
         subjectBudget = null;
         evaluatorBudget = null;
+      case '--skip-probe':
+        // Handled directly in main() as a fail-open escape; no config field.
+        break;
       case '--help' || '-h':
         _printUsage();
         exit(0);

@@ -18,6 +18,7 @@ export 'src/pipeline/experiment_runner.dart';
 export 'src/pipeline/mutation_operators.dart';
 export 'src/pipeline/researcher.dart';
 export 'src/pipeline/subject.dart';
+export 'src/probe/contamination_probe.dart';
 export 'src/rubric/rubric.dart';
 export 'src/runner/claude_runner.dart';
 export 'src/storage/json_store.dart';

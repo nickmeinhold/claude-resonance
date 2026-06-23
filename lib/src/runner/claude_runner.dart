@@ -85,6 +85,41 @@ abstract class ClaudeRunner {
 /// process, capturing stdout as the response. Uses `--output-format json`
 /// for structured output and `--json-schema` when schema enforcement is
 /// needed (Evaluator, Researcher).
+///
+/// ## Contamination isolation (critical for experimental validity)
+///
+/// Without isolation, every role inherits the dart process's environment and
+/// leaks Claude Code's own configuration into the experiment — making the
+/// pipeline measure an echo of its own instructions rather than the prompt on
+/// trial. There are THREE distinct leak channels, each closed by a different
+/// lever (all three empirically verified clean, 2026-06-23; OAuth auth
+/// survives all three, unlike `--bare`/`HOME` override which break login):
+///
+/// 1. **Global `~/.claude/CLAUDE.md`** (the `user` setting source) and
+///    **project `CLAUDE.md`** (the `project` source) → closed by
+///    `--setting-sources local` (drops both, keeps local/auth).
+/// 2. **Project auto-memory** (`MEMORY.md` + `project_*.md`), loaded by a
+///    mechanism orthogonal to setting-sources and keyed by the project slug
+///    derived from cwd → closed two ways for redundancy:
+///    `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in the subprocess env, AND running
+///    in a fresh temp [workingDirectory] (a slug with no memory dir). The
+///    cwd is created per-call and deleted in a `finally`, so no cwd-local
+///    artifact the CLI might write can carry state from one role to the next
+///    (Researcher → Subject → Evaluator stay mutually isolated).
+///
+/// ### Named tradeoff: the env is inherit-all + one kill switch, not a denylist
+///
+/// `environment:` is *merged onto* the parent env (`includeParentEnvironment`
+/// defaults true), so the subprocess inherits every parent variable plus the
+/// auto-memory kill switch. This is deliberate: overriding `HOME` or passing a
+/// minimal allow-list breaks the CLI's OAuth/keychain auth (verified — `HOME`
+/// override yields `Not logged in`). The contamination channels we actually
+/// observed (CLAUDE.md × 2, auto-memory) are each closed by a *specific* lever
+/// above; a hypothetical `CLAUDE_*`/`ANTHROPIC_*` env-var contaminant is not a
+/// known channel here. If one is ever found, close it with another targeted
+/// override rather than flipping to `includeParentEnvironment: false` (which
+/// reintroduces the auth break). The standing probe gate is what would catch
+/// such a regression.
 class ProcessClaudeRunner implements ClaudeRunner {
   @override
   Future<ClaudeResponse> run({
@@ -103,6 +138,11 @@ class ProcessClaudeRunner implements ClaudeRunner {
       model,
       '--no-session-persistence',
       '--dangerously-skip-permissions',
+      // Drop the user (global ~/.claude/CLAUDE.md) and project CLAUDE.md
+      // setting sources; keep only local. Auth is not a setting source and
+      // is unaffected. See class doc — channel 1.
+      '--setting-sources',
+      'local',
     ];
 
     if (maxBudgetUsd != null) {
@@ -119,6 +159,38 @@ class ProcessClaudeRunner implements ClaudeRunner {
 
     final stopwatch = Stopwatch()..start();
 
+    // Channel 2: a fresh, slug-less working directory created per call and
+    // removed in the `finally` below, so the subprocess can neither read the
+    // project's CLAUDE.md/auto-memory nor leave artifacts visible to the next
+    // role's call.
+    final isolatedCwd =
+        io.Directory.systemTemp.createTempSync('claude_resonance_iso_');
+    try {
+      return await _runIn(
+        isolatedCwd: isolatedCwd,
+        args: args,
+        jsonSchema: jsonSchema,
+        stopwatch: stopwatch,
+      );
+    } finally {
+      try {
+        isolatedCwd.deleteSync(recursive: true);
+      } on io.FileSystemException {
+        // Best-effort cleanup; the OS reaps systemTemp regardless.
+      }
+    }
+  }
+
+  /// Invokes the CLI inside [isolatedCwd] and parses the response.
+  ///
+  /// Split out from [run] purely so the per-call temp-dir lifecycle (create →
+  /// use → delete) is expressed as a single `try`/`finally` around one call.
+  Future<ClaudeResponse> _runIn({
+    required io.Directory isolatedCwd,
+    required List<String> args,
+    required Map<String, Object>? jsonSchema,
+    required Stopwatch stopwatch,
+  }) async {
     // Retry with rate-limit awareness: if we hit the usage limit,
     // sleep until the reset time instead of failing.
     late ProcessResult result;
@@ -126,7 +198,15 @@ class ProcessClaudeRunner implements ClaudeRunner {
     var transientAttempts = 0;
 
     while (true) {
-      result = await Process.run('claude', args);
+      result = await Process.run(
+        'claude',
+        args,
+        // `environment` is merged onto the parent env (includeParentEnvironment
+        // defaults true), so OAuth/keychain auth is preserved. See class doc —
+        // "Named tradeoff: inherit-all + one kill switch".
+        workingDirectory: isolatedCwd.path,
+        environment: const {'CLAUDE_CODE_DISABLE_AUTO_MEMORY': '1'},
+      );
       if (result.exitCode == 0) break;
 
       final stdout = (result.stdout as String).trim();
@@ -144,6 +224,20 @@ class ProcessClaudeRunner implements ClaudeRunner {
         // After sleeping, reset transient counter and retry.
         transientAttempts = 0;
         continue;
+      }
+
+      // Budget exceeded is deterministic — the same call costs the same
+      // again, so retrying multiplies spend on a guaranteed failure.
+      if (output.contains('"subtype":"error_max_budget_usd"')) {
+        throw ProcessException(
+          'claude',
+          args,
+          'Call exceeded --max-budget-usd. Every CLI invocation carries '
+          '~27k tokens of system-prompt overhead, so per-call budgets '
+          'below ~\$0.10 (opus) cannot succeed. Raise the budget or pass '
+          '--no-budget. Error: $output',
+          result.exitCode,
+        );
       }
 
       // Transient failure — retry with backoff.

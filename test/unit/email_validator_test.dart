@@ -105,7 +105,7 @@ void main() {
         final label = 'a' * 50; // 50
         // 'aaaaa...aaa.aaaaa...aaa.com' — 50+1+50+1+50+1+50+1+48+1+3 = …
         // Simpler: pad last label to hit exactly 253.
-        final domain = '${label}.${label}.${label}.${label}.com';
+        final domain = '$label.$label.$label.$label.com';
         // Only test if it happens to be ≤253; adjust as needed.
         if (domain.length <= 253) {
           expect(

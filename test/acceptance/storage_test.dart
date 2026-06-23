@@ -17,7 +17,7 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    ExperimentRun _makeRun(int generation, double score) {
+    ExperimentRun makeRun(int generation, double score) {
       return ExperimentRun(
         generation: generation,
         variant: PromptVariant(
@@ -55,7 +55,7 @@ void main() {
     }
 
     test('writeRun creates a file and readAllRuns restores it', () async {
-      final run = _makeRun(1, 3.5);
+      final run = makeRun(1, 3.5);
 
       final path = await store.writeRun(run);
       expect(File(path).existsSync(), isTrue);
@@ -68,16 +68,16 @@ void main() {
     });
 
     test('multiple runs are sorted by generation', () async {
-      await store.writeRun(_makeRun(3, 4.0));
-      await store.writeRun(_makeRun(1, 3.0));
-      await store.writeRun(_makeRun(2, 3.5));
+      await store.writeRun(makeRun(3, 4.0));
+      await store.writeRun(makeRun(1, 3.0));
+      await store.writeRun(makeRun(2, 3.5));
 
       final runs = await store.readAllRuns();
       expect(runs.map((r) => r.generation).toList(), [1, 2, 3]);
     });
 
     test('writeExperimentLog creates a consolidated file', () async {
-      final runs = [_makeRun(1, 3.0), _makeRun(2, 4.0)];
+      final runs = [makeRun(1, 3.0), makeRun(2, 4.0)];
 
       final path = await store.writeExperimentLog(runs);
       expect(File(path).existsSync(), isTrue);
@@ -89,7 +89,7 @@ void main() {
     });
 
     test('atomic writes leave no .tmp files', () async {
-      await store.writeRun(_makeRun(1, 3.0));
+      await store.writeRun(makeRun(1, 3.0));
 
       final files = tempDir.listSync();
       expect(files.where((f) => f.path.endsWith('.tmp')), isEmpty);

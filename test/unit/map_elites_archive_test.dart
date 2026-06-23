@@ -11,7 +11,7 @@ void main() {
       archive = MapElitesArchive();
     });
 
-    ExperimentRun _makeRun({
+    ExperimentRun makeRun({
       required double score,
       required String systemPrompt,
       String? strategyType,
@@ -60,7 +60,7 @@ void main() {
     }
 
     test('insert into empty cell succeeds', () {
-      final run = _makeRun(
+      final run = makeRun(
         score: 3.5,
         systemPrompt: 'Be helpful.',
         strategyType: 'persona',
@@ -74,13 +74,13 @@ void main() {
     });
 
     test('insert with higher score replaces occupant', () {
-      final run1 = _makeRun(
+      final run1 = makeRun(
         score: 3.0,
         systemPrompt: 'Be helpful.',
         strategyType: 'persona',
         variantId: 'v1',
       );
-      final run2 = _makeRun(
+      final run2 = makeRun(
         score: 4.0,
         systemPrompt: 'Be very helpful.',
         strategyType: 'persona',
@@ -96,13 +96,13 @@ void main() {
     });
 
     test('insert with lower score is rejected', () {
-      final run1 = _makeRun(
+      final run1 = makeRun(
         score: 4.0,
         systemPrompt: 'Be helpful.',
         strategyType: 'persona',
         variantId: 'v1',
       );
-      final run2 = _makeRun(
+      final run2 = makeRun(
         score: 3.0,
         systemPrompt: 'Be very helpful.',
         strategyType: 'persona',
@@ -169,19 +169,19 @@ void main() {
     });
 
     test('topN returns correct ordering', () {
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 2.0,
         systemPrompt: 'Low score persona prompt.',
         strategyType: 'persona',
         variantId: 'low',
       ));
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 4.5,
         systemPrompt: 'Before answering, consider assumptions.',
         strategyType: 'socratic',
         variantId: 'high',
       ));
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 3.0,
         systemPrompt: 'Rules: Never hedge.',
         strategyType: 'constraint',
@@ -262,13 +262,13 @@ void main() {
     });
 
     test('toJson/fromJson round-trip', () {
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 3.5,
         systemPrompt: 'Be helpful.',
         strategyType: 'persona',
         variantId: 'v1',
       ));
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 4.0,
         systemPrompt: 'Before answering, think about assumptions.',
         strategyType: 'socratic',
@@ -290,7 +290,7 @@ void main() {
           StrategyType.values.length * PromptLengthBin.values.length);
       expect(archive.emptyCells, archive.cellCount);
 
-      archive.tryInsert(_makeRun(
+      archive.tryInsert(makeRun(
         score: 3.0,
         systemPrompt: 'Test.',
         strategyType: 'persona',

@@ -13,6 +13,17 @@
 
 include: package:lints/recommended.yaml
 
+analyzer:
+  exclude:
+    # Orphaned music-theory code, tracked since the initial commit but not
+    # imported by the resonance pipeline or tests, and currently broken at
+    # analyze. Excluded so CI gates the actual project; triage tracked
+    # separately (remove / fix / extract to its own package).
+    - lib/src/music/**
+    - scratch/**
+    - exploration/**
+    - sketch/**
+
 # Uncomment the following section to specify additional rules.
 
 # linter:
