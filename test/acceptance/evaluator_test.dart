@@ -85,12 +85,11 @@ void main() {
       runner.stubAny(ClaudeResponse(
         text: '{}',
         json: {
+          // Full 6-dimension response — the scorer now fails loud on a partial
+          // one, so a realistic stub must cover every rubric dimension.
           'scores': [
-            {
-              'dimension': 'Specificity',
-              'score': 3,
-              'justification': 'ok',
-            },
+            for (final d in Rubric.dimensions)
+              {'dimension': d.name, 'score': 3, 'justification': 'ok'},
           ],
         },
         latency: Duration.zero,
