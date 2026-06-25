@@ -77,17 +77,46 @@ class ExperimentRunner {
           '${archive.occupiedCells}/${archive.cellCount} cells');
     }
 
-    // Determine starting generation from existing data.
+    // Determine the resume point from existing data — at PER-VARIANT
+    // granularity, not per-generation. A crash partway through a generation
+    // leaves fewer than `variantsPerGeneration` runs at the highest
+    // generation; resuming at generation+1 would silently drop the unfinished
+    // variants (and the default config runs 2 variants/generation, so this
+    // bites the default path, not just custom fan-out).
     final existingRuns = await _store.readAllRuns();
-    final startGen = existingRuns.isEmpty
-        ? 0
+    final maxGen = existingRuns.isEmpty
+        ? -1
         : existingRuns.map((r) => r.generation).reduce(
               (a, b) => a > b ? a : b,
-            ) +
-            1;
+            );
+    final completedInMaxGen =
+        existingRuns.where((r) => r.generation == maxGen).length;
 
-    if (startGen > 0) {
-      stdout.writeln('  Resuming from generation $startGen');
+    // Seed phase (generation 0) resume: pick up at the first seed that
+    // hasn't been run yet, instead of an all-or-nothing skip.
+    final seedStartIndex = maxGen == 0 ? completedInMaxGen : 0;
+    final seedsComplete =
+        maxGen > 0 || (maxGen == 0 && completedInMaxGen >= seedVariants.length);
+
+    // Evolution loop resume: re-enter a partially-finished generation at the
+    // next variant index; otherwise start the following generation fresh.
+    final int firstGen;
+    final int firstGenVariantStart;
+    if (maxGen <= 0) {
+      firstGen = 1;
+      firstGenVariantStart = 0;
+    } else if (completedInMaxGen < _config.variantsPerGeneration) {
+      firstGen = maxGen;
+      firstGenVariantStart = completedInMaxGen;
+    } else {
+      firstGen = maxGen + 1;
+      firstGenVariantStart = 0;
+    }
+
+    if (maxGen >= 0) {
+      stdout.writeln('  Resuming: generation $firstGen, variant '
+          '${firstGenVariantStart + 1}/${_config.variantsPerGeneration}'
+          '${seedsComplete ? "" : " (seeds incomplete)"}');
     }
 
     // No saved archive but run history exists: rebuild the archive by
@@ -126,10 +155,10 @@ class ExperimentRunner {
     }
 
     // Seed phase: run all seeds, evaluate, insert into archive.
-    // Skip if we already have archived data (resuming).
-    if (seedVariants.isNotEmpty && startGen == 0) {
+    // On resume, run only the seeds not yet completed (seedStartIndex).
+    if (seedVariants.isNotEmpty && !seedsComplete) {
       stdout.writeln('\n━━━ Generation 0: Seed Variants ━━━');
-      for (final seed in seedVariants) {
+      for (final seed in seedVariants.skip(seedStartIndex)) {
         try {
           final run = await _runGeneration(
             variant: seed,
@@ -155,13 +184,14 @@ class ExperimentRunner {
       _reportArchiveStatus();
     }
 
-    // Evolution loop.
-    final firstGen = startGen > 0 ? startGen : 1;
+    // Evolution loop. The first resumed generation starts at the variant
+    // index where the prior run left off; later generations start at 0.
     for (var gen = firstGen; gen <= _config.generations; gen++) {
       stdout.writeln(
           '\n━━━ Generation $gen / ${_config.generations} ━━━');
 
-      for (var v = 0; v < _config.variantsPerGeneration; v++) {
+      final variantStart = gen == firstGen ? firstGenVariantStart : 0;
+      for (var v = variantStart; v < _config.variantsPerGeneration; v++) {
         try {
           // 1. Researcher generates a new variant via adaptive operator
           //    selection.
