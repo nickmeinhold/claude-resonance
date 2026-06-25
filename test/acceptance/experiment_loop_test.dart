@@ -239,5 +239,73 @@ void main() {
           history.map((e) => (e as Map)['generation'] as int).toList();
       expect(gens, containsAll(<int>[0, 1, 2]));
     });
+
+    test('resume completes a partially-finished generation', () async {
+      void stubAll() {
+        for (final prefix in [
+          'Here is the best-performing',
+          'Generate a completely novel',
+          '## Parent A',
+          '## Prompt A',
+          'Here is an exceptionally',
+          'This is the first generation',
+          '## Experiment History',
+        ]) {
+          runner.stubResponse(prefix, makeResearcherResponse(1));
+        }
+        runner.stubResponse('Evaluate the following', makeEvalResponse());
+        runner.stubAny(makeSubjectResponse('generic'));
+      }
+
+      stubAll();
+
+      final seed = PromptVariant(
+        id: 'seed-1',
+        systemPrompt: 'Be helpful and creative.',
+        generation: 0,
+        createdAt: DateTime.utc(2026, 3, 16),
+        strategyType: 'minimalist',
+      );
+
+      // First run leaves generation 1 PARTIAL: 1 of an eventual 2 variants.
+      // (Simulates a crash partway through the generation — the runner always
+      // completes whole generations, so we stage the partial state by running
+      // with variantsPerGeneration: 1.)
+      await ExperimentRunner(
+        runner: runner,
+        config: ExperimentConfig(
+          generations: 1,
+          experimentsDir: tempDir.path,
+          variantsPerGeneration: 1,
+          evaluationReplicas: 1,
+        ),
+        store: store,
+        seedVariants: [seed],
+      ).run();
+
+      Future<int> gen1Count() async => (await store.readAllRuns())
+          .where((r) => r.generation == 1)
+          .length;
+      expect(await gen1Count(), 1, reason: 'gen 1 staged as partial');
+
+      // Resume with the FULL quota of 2 variants/generation. Per-variant
+      // resume must re-enter generation 1 and run the missing variant rather
+      // than skipping to generation 2 (which is what per-generation
+      // granularity did, silently dropping the unfinished variant).
+      await ExperimentRunner(
+        runner: runner,
+        config: ExperimentConfig(
+          generations: 1,
+          experimentsDir: tempDir.path,
+          variantsPerGeneration: 2,
+          evaluationReplicas: 1,
+        ),
+        store: store,
+        seedVariants: [seed],
+      ).run();
+
+      expect(await gen1Count(), 2,
+          reason: 'resume must finish the generation quota, not skip it');
+    });
   });
 }
