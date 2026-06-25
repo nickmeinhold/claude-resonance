@@ -166,5 +166,78 @@ void main() {
           '${tempDir.path}/experiment_log.json';
       expect(File(logPath).existsSync(), isTrue);
     });
+
+    test('resume rehydrates dashboard history from prior runs', () async {
+      // Stub every operator/eval/subject message the same way the full-loop
+      // test does, so both the initial run and the resume run produce data.
+      void stubAll() {
+        for (final prefix in [
+          'Here is the best-performing',
+          'Generate a completely novel',
+          '## Parent A',
+          '## Prompt A',
+          'Here is an exceptionally',
+          'This is the first generation',
+          '## Experiment History',
+        ]) {
+          runner.stubResponse(prefix, makeResearcherResponse(1));
+        }
+        runner.stubResponse('Evaluate the following', makeEvalResponse());
+        runner.stubAny(makeSubjectResponse('generic'));
+      }
+
+      stubAll();
+
+      final seed = PromptVariant(
+        id: 'seed-1',
+        systemPrompt: 'Be helpful and creative.',
+        generation: 0,
+        createdAt: DateTime.utc(2026, 3, 16),
+        strategyType: 'minimalist',
+      );
+
+      // First run: seed (gen 0) + gen 1 → 2 runs persisted.
+      await ExperimentRunner(
+        runner: runner,
+        config: ExperimentConfig(
+          generations: 1,
+          experimentsDir: tempDir.path,
+          variantsPerGeneration: 1,
+          evaluationReplicas: 1,
+        ),
+        store: store,
+        seedVariants: [seed],
+      ).run();
+
+      // The dashboard timeline after run 1 holds both prior generations.
+      Map<String, dynamic> readDashboard() => jsonDecode(
+            File('${tempDir.path}/dashboard_state.json').readAsStringSync(),
+          ) as Map<String, dynamic>;
+      expect((readDashboard()['history'] as List), hasLength(2));
+
+      // Second run resumes over the SAME store with a fresh runner (empty
+      // in-memory history). Without rehydration the first dashboard write
+      // would clobber the timeline down to just the gen-2 entry.
+      final resumed = ExperimentRunner(
+        runner: runner,
+        config: ExperimentConfig(
+          generations: 2,
+          experimentsDir: tempDir.path,
+          variantsPerGeneration: 1,
+          evaluationReplicas: 1,
+        ),
+        store: store,
+        seedVariants: [seed],
+      );
+      await resumed.run();
+
+      // Timeline must include the 2 rehydrated generations + the new gen 2.
+      final history = readDashboard()['history'] as List;
+      expect(history, hasLength(3),
+          reason: 'resume must rehydrate prior generations, not truncate');
+      final gens =
+          history.map((e) => (e as Map)['generation'] as int).toList();
+      expect(gens, containsAll(<int>[0, 1, 2]));
+    });
   });
 }

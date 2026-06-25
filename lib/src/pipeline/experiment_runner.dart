@@ -103,6 +103,28 @@ class ExperimentRunner {
       await _store.writeArchive(archive);
     }
 
+    // Rehydrate the dashboard history timeline from prior run files.
+    // The archive is restored/rebuilt above, but `history` is a per-process
+    // timeline that lives only in this list — not in the archive — so on
+    // resume it starts empty and the first dashboard write would otherwise
+    // truncate the chart to post-resume generations only. Runs after the
+    // archive is populated so the survivor check below can read it.
+    if (existingRuns.isNotEmpty) {
+      final ordered = [...existingRuns]
+        ..sort((a, b) => a.completedAt.compareTo(b.completedAt));
+      for (final run in ordered) {
+        final cell = archive.classifyVariant(run.variant);
+        // The historical insert decision can't be recovered (displacements
+        // aren't logged), so mark survivors — runs that still own their
+        // cell — as inserted. Accurate enough for the score-over-time chart.
+        final inserted =
+            archive.getCell(cell)?.variant.id == run.variant.id;
+        _addHistoryEntry(dashboardHistory, run, inserted, cell);
+      }
+      stdout.writeln(
+          '  Rehydrated dashboard history: ${dashboardHistory.length} entries');
+    }
+
     // Seed phase: run all seeds, evaluate, insert into archive.
     // Skip if we already have archived data (resuming).
     if (seedVariants.isNotEmpty && startGen == 0) {
