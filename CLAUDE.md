@@ -71,3 +71,22 @@ dart run bin/claude_resonance.dart --generations 2
 Each pipeline role calls Claude via `claude -p` with `--output-format json`,
 `--json-schema` (for Evaluator/Researcher), and `--dangerously-skip-permissions`.
 The `ClaudeRunner` interface makes everything testable with `MockClaudeRunner`.
+
+## Merging to `main`
+
+`main` is a protected branch with `enforce_admins: true` — the rules apply to
+everyone, with **no admin bypass**. To merge a PR you need both:
+
+1. The **`test`** CI check green (strict: branch must be up to date with `main`).
+2. **One approving review.** GitHub forbids self-approval, so a solo PR is
+   approved by the **Maxwell GitHub App** (a distinct identity with
+   `pull_requests: write`) — an independent second set of eyes by design:
+
+   ```bash
+   ~/.claude/scripts/maxwell-approve.sh nickmeinhold/claude-resonance <PR#> "<verdict>"
+   gh pr merge <PR#> --squash --delete-branch   # no --admin needed once both gates pass
+   ```
+
+   Run the approval **after** a real review (self-review for trivial diffs,
+   `/cage-match` for risky ones) and pass that verdict as the body — it records
+   the review, it is not a rubber stamp.
