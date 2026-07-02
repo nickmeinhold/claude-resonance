@@ -235,11 +235,104 @@ void main() {
       expect(variant.mutationOperator, 'refine');
     });
 
+    test('BisociativeRecombinationOperator sets parentIds with two parents',
+        () async {
+      // Need at least 2 runs in the archive for recombination.
+      archive.tryInsert(makeRun(
+        score: 4.2,
+        systemPrompt: 'Parent A: a persona-driven prompt.',
+        strategyType: 'persona',
+        variantId: 'bis-a',
+      ));
+      archive.tryInsert(makeRun(
+        score: 3.8,
+        systemPrompt: 'Before answering, surface hidden assumptions.',
+        strategyType: 'socratic',
+        variantId: 'bis-b',
+      ));
+
+      runner.stubAny(makeOperatorResponse(
+        mutationOperator: 'bisociativeRecombination',
+      ));
+
+      final op = BisociativeRecombinationOperator(
+        runner: runner,
+        model: model,
+        archive: archive,
+      );
+
+      final variant = await op.generate(generation: 2);
+
+      expect(variant.mutationOperator, 'bisociativeRecombination');
+      expect(variant.parentIds, isNotNull);
+      expect(variant.parentIds, hasLength(2));
+      // The two recorded parents must be distinct.
+      expect(variant.parentIds!.first, isNot(variant.parentIds!.last));
+    });
+
+    test('BisociativeRecombinationOperator falls back to refine with < 2 entries',
+        () async {
+      archive.tryInsert(makeRun(
+        score: 3.0,
+        systemPrompt: 'Only one.',
+        strategyType: 'persona',
+      ));
+
+      runner.stubAny(makeOperatorResponse(mutationOperator: 'refine'));
+
+      final op = BisociativeRecombinationOperator(
+        runner: runner,
+        model: model,
+        archive: archive,
+      );
+
+      // Should not throw and should return a valid variant.
+      final variant = await op.generate(generation: 1);
+
+      expect(variant, isA<PromptVariant>());
+      expect(variant.mutationOperator, 'refine');
+      expect(variant.systemPrompt, isNotEmpty);
+    });
+
+    test('BisociativeRecombinationOperator throws on missing system_prompt',
+        () async {
+      archive.tryInsert(makeRun(
+        score: 4.0,
+        systemPrompt: 'Parent A.',
+        strategyType: 'persona',
+        variantId: 'bis-a',
+      ));
+      archive.tryInsert(makeRun(
+        score: 3.5,
+        systemPrompt: 'Parent B.',
+        strategyType: 'socratic',
+        variantId: 'bis-b',
+      ));
+
+      // Response with no structured JSON at all.
+      runner.stubAny(ClaudeResponse(
+        text: 'plain text, no schema',
+        json: null,
+        latency: const Duration(seconds: 1),
+      ));
+
+      final op = BisociativeRecombinationOperator(
+        runner: runner,
+        model: model,
+        archive: archive,
+      );
+
+      expect(
+        () => op.generate(generation: 2),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
     test('each operator type has a distinct type value', () {
-      expect(MutationOperatorType.values, hasLength(5));
+      expect(MutationOperatorType.values, hasLength(6));
       expect(
         MutationOperatorType.values.map((t) => t.name).toSet(),
-        hasLength(5),
+        hasLength(6),
       );
     });
   });

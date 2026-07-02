@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:claude_resonance/claude_resonance.dart';
 import 'package:test/test.dart';
@@ -105,6 +106,53 @@ void main() {
       expect(inv.userMessage, contains('Experiment History'));
       expect(inv.userMessage, contains('Be helpful.'));
       expect(inv.jsonSchema, isNotNull);
+    });
+
+    test('selectOperator can return bisociativeRecombination in early gens',
+        () async {
+      // Seeded Random makes the schedule deterministic and reproducible.
+      final seeded = Researcher(runner, random: Random(42));
+      final archive = MapElitesArchive();
+
+      final seen = <MutationOperatorType>{};
+      // Sweep many rolls in an early generation (progress < 0.3).
+      for (var i = 0; i < 200; i++) {
+        seen.add(seeded.selectOperator(0, 10, archive));
+      }
+
+      expect(
+        seen,
+        contains(MutationOperatorType.bisociativeRecombination),
+        reason: 'bisociative should be reachable early (exploration)',
+      );
+    });
+
+    test('selectOperator keeps bisociative reachable across the schedule',
+        () async {
+      final seeded = Researcher(runner, random: Random(7));
+      final archive = MapElitesArchive();
+
+      // Late generation (progress >= 0.7) — bisociative tapers but never zero.
+      final lateSeen = <MutationOperatorType>{};
+      for (var i = 0; i < 500; i++) {
+        lateSeen.add(seeded.selectOperator(9, 10, archive));
+      }
+      expect(
+        lateSeen,
+        contains(MutationOperatorType.bisociativeRecombination),
+        reason: 'bisociative must never be starved to zero even late',
+      );
+
+      // The ladder must be exhaustive across all phases: every roll resolves
+      // to a real operator, and every operator is reachable somewhere.
+      final allSeen = <MutationOperatorType>{};
+      for (final gen in [0, 5, 9]) {
+        for (var i = 0; i < 500; i++) {
+          allSeen.add(seeded.selectOperator(gen, 10, archive));
+        }
+      }
+      expect(allSeen, equals(MutationOperatorType.values.toSet()),
+          reason: 'no operator should be starved in the probability ladder');
     });
   });
 }
