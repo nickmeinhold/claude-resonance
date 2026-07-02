@@ -93,25 +93,28 @@ Important guidelines:
 
     if (progress < 0.3) {
       // Early: heavy exploration.
-      // 40% random, 30% refine, 20% semantic crossover, 10% differential
-      if (roll < 0.4) return MutationOperatorType.randomInjection;
-      if (roll < 0.7) return MutationOperatorType.refine;
-      if (roll < 0.9) return MutationOperatorType.semanticCrossover;
+      // 20% bisociative, 30% random, 25% refine, 15% semantic, 10% differential
+      if (roll < 0.20) return MutationOperatorType.bisociativeRecombination;
+      if (roll < 0.50) return MutationOperatorType.randomInjection;
+      if (roll < 0.75) return MutationOperatorType.refine;
+      if (roll < 0.90) return MutationOperatorType.semanticCrossover;
       return MutationOperatorType.differentialCrossover;
     } else if (progress < 0.7) {
       // Mid: balanced.
-      // 20% random, 30% refine, 25% semantic crossover, 15% differential, 10% lamarckian
-      if (roll < 0.2) return MutationOperatorType.randomInjection;
-      if (roll < 0.5) return MutationOperatorType.refine;
-      if (roll < 0.75) return MutationOperatorType.semanticCrossover;
-      if (roll < 0.9) return MutationOperatorType.differentialCrossover;
+      // 12% bisociative, 18% random, 25% refine, 22% semantic, 13% differential, 10% lamarckian
+      if (roll < 0.12) return MutationOperatorType.bisociativeRecombination;
+      if (roll < 0.30) return MutationOperatorType.randomInjection;
+      if (roll < 0.55) return MutationOperatorType.refine;
+      if (roll < 0.77) return MutationOperatorType.semanticCrossover;
+      if (roll < 0.90) return MutationOperatorType.differentialCrossover;
       return MutationOperatorType.lamarckian;
     } else {
-      // Late: heavy exploitation.
-      // 10% random, 40% refine, 20% semantic crossover, 15% differential, 15% lamarckian
-      if (roll < 0.1) return MutationOperatorType.randomInjection;
-      if (roll < 0.5) return MutationOperatorType.refine;
-      if (roll < 0.7) return MutationOperatorType.semanticCrossover;
+      // Late: heavy exploitation (bisociative tapers but never zero).
+      // 8% bisociative, 7% random, 40% refine, 18% semantic, 12% differential, 15% lamarckian
+      if (roll < 0.08) return MutationOperatorType.bisociativeRecombination;
+      if (roll < 0.15) return MutationOperatorType.randomInjection;
+      if (roll < 0.55) return MutationOperatorType.refine;
+      if (roll < 0.73) return MutationOperatorType.semanticCrossover;
       if (roll < 0.85) return MutationOperatorType.differentialCrossover;
       return MutationOperatorType.lamarckian;
     }
@@ -129,6 +132,9 @@ Important guidelines:
             runner: _runner, model: _model, archive: archive);
       case MutationOperatorType.differentialCrossover:
         return DifferentialCrossoverOperator(
+            runner: _runner, model: _model, archive: archive);
+      case MutationOperatorType.bisociativeRecombination:
+        return BisociativeRecombinationOperator(
             runner: _runner, model: _model, archive: archive);
       case MutationOperatorType.randomInjection:
         return RandomInjectionOperator(

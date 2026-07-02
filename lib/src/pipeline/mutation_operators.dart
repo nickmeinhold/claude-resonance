@@ -9,6 +9,7 @@ enum MutationOperatorType {
   refine,
   semanticCrossover,
   differentialCrossover,
+  bisociativeRecombination,
   randomInjection,
   lamarckian,
 }
@@ -285,6 +286,86 @@ ${parentB.variant.systemPrompt}
 ```
 
 Identify what these two prompts share (preserve it) and where they differ (experiment with variations). Create a new prompt that preserves the shared foundation while exploring novel combinations of the divergent elements.''';
+
+    final result = await runner.run(
+      userMessage: userMessage,
+      systemPrompt: _systemPrompt,
+      jsonSchema: mutationOperatorSchema,
+      model: model,
+    );
+
+    return parseResult(
+      result,
+      generation: generation,
+      parentIds: [parentA.variant.id, parentB.variant.id],
+    );
+  }
+}
+
+/// Collides two parents across a PRESERVED seam to birth a third function
+/// neither had — the deliberate anti-coherence counterpart to the crossovers.
+///
+/// Where [SemanticCrossoverOperator] and [DifferentialCrossoverOperator]
+/// average toward a single smooth, coherent prompt, this operator keeps the
+/// sharp edges of BOTH parents intact and glues them on a shared anchor. The
+/// visible seam is a feature: it holds the two distinctive spikes in tension
+/// so a new capability can emerge in the gap between them.
+class BisociativeRecombinationOperator extends MutationOperator {
+  BisociativeRecombinationOperator({
+    required super.runner,
+    required super.model,
+    required super.archive,
+  });
+
+  @override
+  MutationOperatorType get type =>
+      MutationOperatorType.bisociativeRecombination;
+
+  static const _systemPrompt = '''
+You are a bisociation engine. You do not synthesize — you COLLIDE.
+
+You are given two high-scoring system prompts. Your job is NOT to average them into one coherent hybrid. It is to birth a THIRD function that neither parent had, born in the gap between them.
+
+Do this:
+1. Decompose each parent to its FUNCTION and its I/O SOCKETS — what does it actually DO, what does it take IN, what does it put OUT? Ignore surface wording; find the mechanism.
+2. Find the shared ANCHOR — the one socket where the two parents could glue: a common input, a common stance, a place their mechanisms could touch.
+3. COLLIDE them across that seam. Keep the sharp, distinctive spike of BOTH parents. Do NOT dissolve them into one smooth prompt. The result must still show where the two came together.
+
+Objective: aliveness × impact, PLUS one atypical tail. Build a conventional, high-functioning core, then bolt on exactly ONE deliberately off-distribution element — a stance, constraint, or move that a careful prompt engineer would call slightly wrong. This is explicitly ANTI-coherence: a seam that still shows is a feature, not a defect. A prompt that reads as one seamless voice has FAILED this operator.
+
+The goal is emergence: a capability that appears only because these two specific spikes are held in tension, not present in either parent alone.
+
+Important guidelines:
+- Keep the result under 500 words
+- The prompt should still generalize across diverse tasks (creative, debugging, design, philosophical, routine)
+- Preserve the seam — do not smooth it away
+- Set strategy_type to one of: persona, metacognitive, constraint, minimalist, socratic, adversarial, emotional, domainTransfer''';
+
+  @override
+  Future<PromptVariant> generate({required int generation}) async {
+    final runs = archive.allRuns();
+    if (runs.length < 2) {
+      // Fall back to refine if not enough parents to collide.
+      return RefineOperator(runner: runner, model: model, archive: archive)
+          .generate(generation: generation);
+    }
+
+    // Two DIFFERENT high-scoring parents: best + a complementary elite.
+    final parentA = archive.bestRun()!;
+    final parentB = archive.complementaryParent(parentA) ?? runs.last;
+
+    final userMessage = '''
+## Parent A (score: ${parentA.overallScore.toStringAsFixed(2)})
+```
+${parentA.variant.systemPrompt}
+```
+
+## Parent B (score: ${parentB.overallScore.toStringAsFixed(2)})
+```
+${parentB.variant.systemPrompt}
+```
+
+Decompose each parent to its function and I/O sockets. Find the shared anchor where they could glue. Collide them across that seam — keep BOTH distinctive spikes sharp, preserve the seam, and birth a third function neither parent had. Add exactly one atypical, off-distribution element to a conventional core.''';
 
     final result = await runner.run(
       userMessage: userMessage,
